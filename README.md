@@ -12,6 +12,16 @@ Codex 번들 Node가 있는 경우:
 
 브라우저에서 `http://localhost:4173` 으로 접속합니다.
 
+## 배포
+
+Render에서 GitHub 저장소를 연결해 Web Service로 배포할 수 있습니다.
+
+- Build Command: `npm install`
+- Start Command: `npm start`
+- Environment Variable: `MASTER_PASSWORD`
+
+`render.yaml` 파일도 포함되어 있어 Render Blueprint로 배포할 수 있습니다.
+
 ## 마스터 접속
 
 기본 비밀번호는 `choblog7` 입니다.

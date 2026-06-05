@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: choblog7-mission
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: MASTER_PASSWORD
+        value: choblog7
