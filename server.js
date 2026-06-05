@@ -197,6 +197,7 @@ function buildLinkRows(db) {
     .map((item) => ({
       name: item.name,
       phone: item.phone,
+      group: normalizeGroup(item.group),
       week: item.week,
       url: item.details.postUrl,
       submittedAt: item.submittedAt,
