@@ -8,3 +8,12 @@ services:
     envVars:
       - key: MASTER_PASSWORD
         value: choblog7
+  - type: web
+    name: choblog7-demo
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: MASTER_PASSWORD
+        value: choblog7
