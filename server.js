@@ -9,6 +9,7 @@ const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, "public");
 const DATA_DIR = path.join(ROOT, "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
+const SEMINAR_DB_PATH = path.join(DATA_DIR, "seminar.json");
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -21,9 +22,37 @@ function emptyDb() {
   return { participants: [], submissions: [], settings: { currentWeek: 1 } };
 }
 
+function toDateInputValue(date) {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function emptySeminarDb() {
+  return {
+    students: [],
+    reservations: [],
+    settings: {
+      startDate: toDateInputValue(new Date()),
+      days: 7,
+      startHour: 11,
+      endHour: 17,
+      intervalMinutes: 20,
+    },
+  };
+}
+
 function ensureDb() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(DB_PATH)) writeDb(emptyDb());
+}
+
+function ensureSeminarDb() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(SEMINAR_DB_PATH)) writeSeminarDb(emptySeminarDb());
 }
 
 function readDb() {
@@ -33,9 +62,23 @@ function readDb() {
   return db;
 }
 
+function readSeminarDb() {
+  ensureSeminarDb();
+  const db = JSON.parse(fs.readFileSync(SEMINAR_DB_PATH, "utf8"));
+  if (!db.settings) db.settings = emptySeminarDb().settings;
+  if (!Array.isArray(db.students)) db.students = [];
+  if (!Array.isArray(db.reservations)) db.reservations = [];
+  return db;
+}
+
 function writeDb(db) {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+}
+
+function writeSeminarDb(db) {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(SEMINAR_DB_PATH, JSON.stringify(db, null, 2), "utf8");
 }
 
 function sendJson(res, status, payload) {
@@ -102,9 +145,30 @@ function getKoreaTimestamp() {
   }).format(new Date());
 }
 
+function addDays(dateValue, days) {
+  const date = new Date(`${dateValue}T00:00:00+09:00`);
+  date.setDate(date.getDate() + days);
+  return toDateInputValue(date);
+}
+
+function formatKoreanDate(dateValue) {
+  const date = new Date(`${dateValue}T00:00:00+09:00`);
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }).format(date);
+}
+
 function validateWeek(week) {
   const value = Number(week);
   return Number.isInteger(value) && value >= 1 && value <= 5 ? value : null;
+}
+
+function validateDateInput(value) {
+  const text = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
 }
 
 function normalizeUrl(value) {
@@ -204,8 +268,222 @@ function buildLinkRows(db) {
     }));
 }
 
+function seminarStudentId(name, phone) {
+  return crypto.createHash("sha256").update(`seminar|${name}|${phone}`).digest("hex").slice(0, 16);
+}
+
+function getSeminarStudent(db, name, phone) {
+  let student = db.students.find((item) => item.name === name && item.phone === phone);
+  if (!student) {
+    student = {
+      id: seminarStudentId(name, phone),
+      name,
+      phone,
+      createdAt: getKoreaTimestamp(),
+    };
+    db.students.push(student);
+  }
+  return student;
+}
+
+function minutesToTime(totalMinutes) {
+  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
+  const minutes = String(totalMinutes % 60).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function buildSeminarSlots(settings, reservations, studentId = null) {
+  const slots = [];
+  const startMinutes = settings.startHour * 60;
+  const endMinutes = settings.endHour * 60;
+  for (let dayIndex = 0; dayIndex < settings.days; dayIndex += 1) {
+    const date = addDays(settings.startDate, dayIndex);
+    for (let minutes = startMinutes; minutes < endMinutes; minutes += settings.intervalMinutes) {
+      const start = minutesToTime(minutes);
+      const end = minutesToTime(minutes + settings.intervalMinutes);
+      const slotId = `${date}_${start}`;
+      const reservation = reservations.find((item) => item.slotId === slotId);
+      slots.push({
+        id: slotId,
+        date,
+        dateLabel: formatKoreanDate(date),
+        start,
+        end,
+        label: `${start}~${end}`,
+        booked: Boolean(reservation),
+        mine: Boolean(studentId && reservation && reservation.studentId === studentId),
+      });
+    }
+  }
+  return slots;
+}
+
+function findActiveSeminarReservation(db, studentId) {
+  return db.reservations.find((item) => item.studentId === studentId);
+}
+
+function sanitizeSeminarReservation(reservation) {
+  if (!reservation) return null;
+  return {
+    id: reservation.id,
+    slotId: reservation.slotId,
+    date: reservation.date,
+    dateLabel: formatKoreanDate(reservation.date),
+    start: reservation.start,
+    end: reservation.end,
+    name: reservation.name,
+    createdAt: reservation.createdAt,
+  };
+}
+
+function buildSeminarPublicPayload(db, studentId = null) {
+  const ownReservation = studentId ? findActiveSeminarReservation(db, studentId) : null;
+  return {
+    ok: true,
+    settings: db.settings,
+    slots: buildSeminarSlots(db.settings, db.reservations, studentId),
+    reservation: sanitizeSeminarReservation(ownReservation),
+  };
+}
+
 async function handleApi(req, res, pathname) {
   try {
+    if (pathname === "/api/seminar/public" && req.method === "GET") {
+      const db = readSeminarDb();
+      return sendJson(res, 200, buildSeminarPublicPayload(db));
+    }
+
+    if (pathname === "/api/seminar/login" && req.method === "POST") {
+      const body = await readBody(req);
+      const name = normalizeName(body.name);
+      const phone = normalizePhone(body.phone);
+      if (!name || phone.length < 8) {
+        return sendJson(res, 400, { ok: false, message: "학생 이름과 휴대폰번호를 확인해주세요." });
+      }
+      const db = readSeminarDb();
+      const student = getSeminarStudent(db, name, phone);
+      writeSeminarDb(db);
+      return sendJson(res, 200, {
+        ...buildSeminarPublicPayload(db, student.id),
+        student,
+        message: `${student.name}님, 상담 예약 화면에 접속했습니다.`,
+      });
+    }
+
+    if (pathname === "/api/seminar/book" && req.method === "POST") {
+      const body = await readBody(req);
+      const name = normalizeName(body.name);
+      const phone = normalizePhone(body.phone);
+      const slotId = String(body.slotId || "").trim();
+      if (!name || phone.length < 8 || !slotId) {
+        return sendJson(res, 400, { ok: false, message: "예약 정보가 올바르지 않습니다." });
+      }
+
+      const db = readSeminarDb();
+      const student = getSeminarStudent(db, name, phone);
+      const existingReservation = findActiveSeminarReservation(db, student.id);
+      if (existingReservation) {
+        writeSeminarDb(db);
+        return sendJson(res, 409, { ok: false, message: "기존 예약을 취소하고 시간변경을 해주세요" });
+      }
+
+      const slots = buildSeminarSlots(db.settings, db.reservations, student.id);
+      const slot = slots.find((item) => item.id === slotId);
+      if (!slot) {
+        return sendJson(res, 400, { ok: false, message: "선택할 수 없는 상담 시간입니다." });
+      }
+      if (slot.booked) {
+        return sendJson(res, 409, { ok: false, message: "이미 다른 학생이 예약한 시간입니다." });
+      }
+
+      const reservation = {
+        id: crypto.randomUUID(),
+        studentId: student.id,
+        name: student.name,
+        phone: student.phone,
+        slotId: slot.id,
+        date: slot.date,
+        start: slot.start,
+        end: slot.end,
+        createdAt: getKoreaTimestamp(),
+      };
+      db.reservations.push(reservation);
+      writeSeminarDb(db);
+      return sendJson(res, 200, {
+        ...buildSeminarPublicPayload(db, student.id),
+        student,
+        message: `${slot.dateLabel} ${slot.start}~${slot.end} 상담 예약이 완료되었습니다.`,
+      });
+    }
+
+    if (pathname === "/api/seminar/cancel" && req.method === "POST") {
+      const body = await readBody(req);
+      const name = normalizeName(body.name);
+      const phone = normalizePhone(body.phone);
+      if (!name || phone.length < 8) {
+        return sendJson(res, 400, { ok: false, message: "학생 이름과 휴대폰번호를 확인해주세요." });
+      }
+
+      const db = readSeminarDb();
+      const student = getSeminarStudent(db, name, phone);
+      const beforeCount = db.reservations.length;
+      db.reservations = db.reservations.filter((item) => item.studentId !== student.id);
+      writeSeminarDb(db);
+      return sendJson(res, 200, {
+        ...buildSeminarPublicPayload(db, student.id),
+        student,
+        message: beforeCount === db.reservations.length ? "취소할 예약이 없습니다." : "기존 상담 예약이 취소되었습니다.",
+      });
+    }
+
+    if (pathname === "/api/seminar/admin" && req.method === "POST") {
+      const body = await readBody(req);
+      if (String(body.password || "") !== MASTER_PASSWORD) {
+        return sendJson(res, 401, { ok: false, message: "관리자 비밀번호가 올바르지 않습니다." });
+      }
+      const db = readSeminarDb();
+      return sendJson(res, 200, {
+        ok: true,
+        settings: db.settings,
+        slots: buildSeminarSlots(db.settings, db.reservations),
+        reservations: db.reservations
+          .slice()
+          .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start)),
+      });
+    }
+
+    if (pathname === "/api/seminar/settings" && req.method === "POST") {
+      const body = await readBody(req);
+      if (String(body.password || "") !== MASTER_PASSWORD) {
+        return sendJson(res, 401, { ok: false, message: "관리자 비밀번호가 올바르지 않습니다." });
+      }
+      const startDate = validateDateInput(body.startDate);
+      if (!startDate) {
+        return sendJson(res, 400, { ok: false, message: "상담 시작 날짜를 선택해주세요." });
+      }
+      const db = readSeminarDb();
+      db.settings.startDate = startDate;
+      writeSeminarDb(db);
+      return sendJson(res, 200, {
+        ok: true,
+        message: `${formatKoreanDate(startDate)}부터 7일간 상담 기간으로 설정했습니다.`,
+        settings: db.settings,
+        slots: buildSeminarSlots(db.settings, db.reservations),
+        reservations: db.reservations
+          .slice()
+          .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start)),
+      });
+    }
+
+    if (pathname === "/api/seminar/reset" && req.method === "POST") {
+      const body = await readBody(req);
+      if (String(body.password || "") !== MASTER_PASSWORD) {
+        return sendJson(res, 401, { ok: false, message: "관리자 비밀번호가 올바르지 않습니다." });
+      }
+      writeSeminarDb(emptySeminarDb());
+      return sendJson(res, 200, { ok: true, message: "상담 예약 데이터가 초기화되었습니다." });
+    }
+
     if (pathname === "/api/links" && req.method === "GET") {
       const db = readDb();
       return sendJson(res, 200, { ok: true, links: buildLinkRows(db) });

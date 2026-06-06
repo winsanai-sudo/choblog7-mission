@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>초강스AI세미나</title>
+    <title>초강스AI세미나 상담예약</title>
     <link rel="stylesheet" href="/seminar.css" />
   </head>
   <body>
@@ -19,95 +19,115 @@
           <p class="eyebrow">Chogangs AI Seminar</p>
           <h1>초강스AI세미나</h1>
           <p>
-            블로그 운영과 콘텐츠 제작에 AI를 자연스럽게 연결하는 실전형 세미나입니다.
-            어렵게 느껴지는 AI를 오늘 바로 써먹을 수 있는 방식으로 정리합니다.
+            학원 상담 예약을 위한 독립 페이지입니다. 학생 이름과 휴대폰번호로 접속한 뒤,
+            선착순으로 원하는 상담 시간을 하나만 예약할 수 있습니다.
           </p>
-          <div class="hero-actions">
-            <a href="#program">커리큘럼 보기</a>
-            <a class="secondary" href="#guide">참여 안내</a>
-          </div>
         </div>
 
-        <div class="signal-panel">
-          <span>Seminar Mode</span>
-          <strong>AI × Blog × Workflow</strong>
-          <p>아이디어 발굴부터 글 구조화, 제목 개선, 반복 업무 자동화까지 한 흐름으로 다룹니다.</p>
-        </div>
+        <form class="login-card" id="studentLoginForm">
+          <span>Student Access</span>
+          <h2>상담 예약 접속</h2>
+          <label>
+            학생 이름
+            <input id="studentNameInput" autocomplete="name" placeholder="홍길동" required />
+          </label>
+          <label>
+            휴대폰번호
+            <input id="studentPhoneInput" inputmode="tel" autocomplete="tel" placeholder="01012345678" required />
+          </label>
+          <button class="primary" type="submit">예약 화면 열기</button>
+        </form>
       </section>
 
-      <section class="intro">
-        <article>
-          <span>01</span>
-          <h2>쉽게 이해</h2>
-          <p>AI 용어보다 실제 사용 장면 중심으로 설명합니다.</p>
-        </article>
-        <article>
-          <span>02</span>
-          <h2>바로 실습</h2>
-          <p>블로그 글감, 제목, 본문 구성에 바로 적용합니다.</p>
-        </article>
-        <article>
-          <span>03</span>
-          <h2>반복 가능</h2>
-          <p>세미나 후에도 계속 쓸 수 있는 작업 흐름을 가져갑니다.</p>
-        </article>
-      </section>
-
-      <section class="program" id="program">
+      <section class="reservation-area hidden" id="reservationArea">
         <div class="section-head">
-          <p class="eyebrow">Program</p>
-          <h2>세미나 구성</h2>
+          <div>
+            <p class="eyebrow">Reservation</p>
+            <h2 id="studentWelcome">상담 시간 선택</h2>
+            <p id="periodText">상담 기간을 불러오는 중입니다.</p>
+          </div>
+          <button class="ghost" id="studentLogoutButton" type="button">로그아웃</button>
         </div>
 
-        <div class="timeline">
+        <div class="notice-panel">
+          <strong>예약 규칙</strong>
+          <p>상담은 20분 단위이며, 한 학생은 하나의 시간만 예약할 수 있습니다. 시간 변경은 기존 예약 취소 후 다시 선택해주세요.</p>
+        </div>
+
+        <div class="my-reservation hidden" id="myReservationBox">
           <div>
-            <span>Part 1</span>
-            <h3>AI로 글감 찾기</h3>
-            <p>내 업종과 고객 관점에 맞는 블로그 주제를 빠르게 뽑는 방법을 배웁니다.</p>
+            <span>내 예약</span>
+            <strong id="myReservationText"></strong>
           </div>
+          <button class="danger" id="cancelReservationButton" type="button">예약 취소</button>
+        </div>
+
+        <div class="schedule-grid" id="scheduleGrid"></div>
+      </section>
+
+      <section class="admin-area">
+        <form class="admin-login" id="adminLoginForm">
           <div>
-            <span>Part 2</span>
-            <h3>제목과 목차 만들기</h3>
-            <p>클릭하고 싶게 만드는 제목, 읽기 편한 목차, 설득력 있는 흐름을 만듭니다.</p>
+            <p class="eyebrow">Admin</p>
+            <h2>상담 예약 관리</h2>
           </div>
-          <div>
-            <span>Part 3</span>
-            <h3>본문 초안 다듬기</h3>
-            <p>AI가 만든 글을 내 말투와 실제 경험이 살아있는 글로 바꾸는 방법을 다룹니다.</p>
+          <label>
+            관리자 비밀번호
+            <input id="adminPasswordInput" type="password" placeholder="비밀번호" required />
+          </label>
+          <button class="dark" type="submit">관리자 보기</button>
+        </form>
+
+        <div class="admin-panel hidden" id="adminPanel">
+          <div class="admin-controls">
+            <label>
+              상담 시작 날짜
+              <input id="startDateInput" type="date" />
+            </label>
+            <button class="primary compact-button" id="savePeriodButton" type="button">상담 기간 저장</button>
+            <button class="ghost compact-button" id="refreshAdminButton" type="button">새로고침</button>
+            <button class="danger compact-button" id="resetSeminarButton" type="button">예약 초기화</button>
           </div>
-          <div>
-            <span>Part 4</span>
-            <h3>나만의 프롬프트 만들기</h3>
-            <p>계속 재사용할 수 있는 질문 템플릿을 만들어 세미나 이후에도 활용합니다.</p>
+
+          <div class="admin-summary" id="adminSummary"></div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>상담일</th>
+                  <th>시간</th>
+                  <th>학생 이름</th>
+                  <th>휴대폰번호</th>
+                  <th>예약일시</th>
+                </tr>
+              </thead>
+              <tbody id="adminReservationTable"></tbody>
+            </table>
           </div>
         </div>
       </section>
 
-      <section class="guide" id="guide">
+      <section class="message-ideas">
+        <p class="eyebrow">Notification</p>
+        <h2>예약 안내 방식 제안</h2>
         <div>
-          <p class="eyebrow">Guide</p>
-          <h2>참여 안내</h2>
-          <p>
-            노트북이나 태블릿을 준비하면 실습을 더 편하게 따라올 수 있습니다.
-            AI를 처음 써보는 분도 참여할 수 있도록 천천히 진행합니다.
-          </p>
+          <article>
+            <span>1순위</span>
+            <h3>화면 확인 + 관리자 목록</h3>
+            <p>추가 비용 없이 바로 사용할 수 있습니다. 학생은 예약 완료 화면을 캡처하고, 학원은 관리자 목록으로 확인합니다.</p>
+          </article>
+          <article>
+            <span>확장</span>
+            <h3>문자 또는 알림톡</h3>
+            <p>실제 문자/알림톡 발송은 외부 발송 서비스 연결이 필요합니다. 운영이 안정되면 예약 완료 시 자동 발송으로 확장할 수 있습니다.</p>
+          </article>
         </div>
-
-        <dl>
-          <div>
-            <dt>대상</dt>
-            <dd>블로그 콘텐츠를 더 빠르고 선명하게 만들고 싶은 분</dd>
-          </div>
-          <div>
-            <dt>준비물</dt>
-            <dd>노트북 또는 태블릿, 평소 운영 중인 블로그 주제</dd>
-          </div>
-          <div>
-            <dt>방식</dt>
-            <dd>설명 + 예시 + 실습 중심</dd>
-          </div>
-        </dl>
       </section>
+
+      <div class="toast hidden" id="seminarToast" role="status"></div>
     </main>
+
+    <script src="/seminar.js"></script>
   </body>
 </html>

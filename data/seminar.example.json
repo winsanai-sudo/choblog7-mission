@@ -1,0 +1,11 @@
+{
+  "students": [],
+  "reservations": [],
+  "settings": {
+    "startDate": "2026-06-06",
+    "days": 7,
+    "startHour": 11,
+    "endHour": 17,
+    "intervalMinutes": 20
+  }
+}
