@@ -37,6 +37,10 @@
             <button id="seniorButton" type="button">시니어</button>
           </div>
 
+          <label class="name-search-label">
+            이름 검색
+            <input id="nameSearchInput" placeholder="이름을 입력하세요" autocomplete="off" />
+          </label>
           <div class="name-list" id="nameList" aria-label="이름 선택"></div>
           <input id="nameInput" type="hidden" required />
 
@@ -44,6 +48,7 @@
             휴대폰번호
             <input id="phoneInput" inputmode="tel" autocomplete="tel" placeholder="01012345678" required />
           </label>
+          <p class="privacy-note">제출 확인을 위해 이름과 휴대폰번호가 저장됩니다. 저장된 정보는 미션 관리 목적으로만 사용됩니다.</p>
           <button class="primary" type="submit">접속하기</button>
         </form>
 
@@ -112,6 +117,7 @@
           </div>
           <div class="action-row">
             <a class="link-button" href="/links.html" target="_blank" rel="noreferrer">링크 모음</a>
+            <button class="ghost" id="downloadCsvButton" type="button">CSV 다운로드</button>
             <button class="ghost" id="refreshMasterButton" type="button">새로고침</button>
             <button class="danger" id="resetButton" type="button">전체 초기화</button>
           </div>
@@ -133,6 +139,13 @@
         </div>
 
         <div class="stats" id="statsArea"></div>
+
+        <div class="admin-search">
+          <label>
+            참가자 검색
+            <input id="adminSearchInput" placeholder="이름 또는 휴대폰번호 검색" autocomplete="off" />
+          </label>
+        </div>
 
         <div class="table-wrap">
           <table>

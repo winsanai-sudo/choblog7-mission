@@ -2,12 +2,14 @@ const linkState = {
   links: [],
   group: "all",
   week: "all",
+  currentWeek: null,
 };
 
 const groupFilters = document.getElementById("groupFilters");
 const weekFilters = document.getElementById("weekFilters");
 const linkList = document.getElementById("linkList");
 const emptyState = document.getElementById("emptyState");
+const currentWeekNote = document.getElementById("currentWeekNote");
 
 function escapeHtml(value) {
   return String(value || "")
@@ -34,11 +36,15 @@ function renderFilters() {
   const filters = ["all", 1, 2, 3, 4, 5];
   weekFilters.innerHTML = filters
     .map((week) => {
-      const label = week === "all" ? "전체" : `${week}주차`;
+      const isCurrent = Number(week) === Number(linkState.currentWeek);
+      const label = week === "all" ? "전체" : `${week}주차${isCurrent ? " · 이번" : ""}`;
       const active = String(linkState.week) === String(week) ? "active" : "";
-      return `<button class="${active}" type="button" data-week="${week}">${label}</button>`;
+      const current = isCurrent ? "current" : "";
+      return `<button class="${active} ${current}" type="button" data-week="${week}">${label}</button>`;
     })
     .join("");
+
+  currentWeekNote.textContent = linkState.currentWeek ? `현재 강조 주차는 ${linkState.currentWeek}주차입니다.` : "";
 }
 
 function renderLinks() {
@@ -84,6 +90,8 @@ weekFilters.addEventListener("click", (event) => {
 async function loadLinks() {
   const response = await fetch("/api/links");
   const data = await response.json();
+  linkState.currentWeek = data.currentWeek || null;
+  if (linkState.currentWeek) linkState.week = String(linkState.currentWeek);
   linkState.links = data.links || [];
   renderFilters();
   renderLinks();

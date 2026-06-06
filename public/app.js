@@ -38,6 +38,9 @@ const state = {
   selectedWeek: 1,
   masterPassword: "",
   summary: null,
+  masterData: null,
+  nameSearch: "",
+  adminSearch: "",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -47,6 +50,7 @@ const els = {
   masterLoginForm: $("masterLoginForm"),
   juniorButton: $("juniorButton"),
   seniorButton: $("seniorButton"),
+  nameSearchInput: $("nameSearchInput"),
   nameList: $("nameList"),
   nameInput: $("nameInput"),
   phoneInput: $("phoneInput"),
@@ -66,10 +70,12 @@ const els = {
   mission1Status: $("mission1Status"),
   mission2Status: $("mission2Status"),
   refreshMasterButton: $("refreshMasterButton"),
+  downloadCsvButton: $("downloadCsvButton"),
   resetButton: $("resetButton"),
   currentWeekSelect: $("currentWeekSelect"),
   saveCurrentWeekButton: $("saveCurrentWeekButton"),
   statsArea: $("statsArea"),
+  adminSearchInput: $("adminSearchInput"),
   participantTable: $("participantTable"),
   submissionTable: $("submissionTable"),
   toast: $("toast"),
@@ -106,15 +112,27 @@ function credentials() {
 
 function renderNameList() {
   const names = getNamesForGroup(state.group);
+  const query = state.nameSearch.trim().toLowerCase();
+  const filteredNames = query ? names.filter((name) => name.toLowerCase().includes(query)) : names;
+  const selectedName = els.nameInput.value;
   els.nameList.innerHTML = "";
-  els.nameInput.value = "";
 
-  names.forEach((name, index) => {
+  if (selectedName && !names.includes(selectedName)) {
+    els.nameInput.value = "";
+  }
+
+  if (!filteredNames.length) {
+    els.nameList.innerHTML = `<p class="empty-list">검색된 이름이 없습니다.</p>`;
+    return;
+  }
+
+  filteredNames.forEach((name, index) => {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = name;
     button.dataset.name = name;
     button.dataset.index = String(index);
+    if (name === selectedName) button.classList.add("selected");
     button.addEventListener("click", () => {
       els.nameInput.value = name;
       els.nameList.querySelectorAll("button").forEach((item) => item.classList.remove("selected"));
@@ -126,6 +144,9 @@ function renderNameList() {
 
 function selectGroup(group) {
   state.group = group;
+  state.nameSearch = "";
+  els.nameSearchInput.value = "";
+  els.nameInput.value = "";
   els.juniorButton.classList.toggle("active", group === "junior");
   els.seniorButton.classList.toggle("active", group === "senior");
   renderNameList();
@@ -168,11 +189,20 @@ function renderParticipant() {
 }
 
 function renderMaster(data) {
+  state.masterData = data;
   els.masterArea.classList.remove("hidden");
   els.participantArea.classList.add("hidden");
   if (data.settings && data.settings.currentWeek) {
     els.currentWeekSelect.value = String(data.settings.currentWeek);
   }
+
+  const query = state.adminSearch.trim().toLowerCase();
+  const matchesSearch = (item) => {
+    if (!query) return true;
+    return `${item.name || ""} ${item.phone || ""} ${formatPhone(item.phone || "")}`.toLowerCase().includes(query);
+  };
+  const participants = data.participants.filter(matchesSearch);
+  const submissions = data.submissions.filter(matchesSearch);
 
   els.statsArea.innerHTML = data.weekStats
     .map(
@@ -180,14 +210,15 @@ function renderMaster(data) {
         <div class="stat">
           <span>${stat.week}주차 성공률</span>
           <strong>${stat.successRate}%</strong>
+          <div class="stat-bar" aria-hidden="true"><i style="width: ${stat.successRate}%"></i></div>
           <small>${stat.successCount}/${stat.totalParticipants}명 성공</small>
         </div>
       `,
     )
     .join("");
 
-  els.participantTable.innerHTML = data.participants.length
-    ? data.participants
+  els.participantTable.innerHTML = participants.length
+    ? participants
         .map((participant) => {
           const weekCells = participant.weeks
             .map((week) => {
@@ -209,8 +240,8 @@ function renderMaster(data) {
         .join("")
     : `<tr><td colspan="9">아직 참가자 데이터가 없습니다.</td></tr>`;
 
-  els.submissionTable.innerHTML = data.submissions.length
-    ? data.submissions
+  els.submissionTable.innerHTML = submissions.length
+    ? submissions
         .map(
           (submission) => `
             <tr>
@@ -326,8 +357,82 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function weekStatusLabel(week) {
+  if (week.success) return week.late ? "성공(늦은 제출)" : "성공";
+  if (week.mission1 && week.mission2) return "성공";
+  if (week.mission1) return "미션1만";
+  if (week.mission2) return "미션2만";
+  return "미제출";
+}
+
+function csvEscape(value) {
+  const text = String(value || "");
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function downloadCsv() {
+  const data = state.masterData;
+  if (!data || !data.participants) {
+    showToast("먼저 마스터 계정으로 접속해주세요.");
+    return;
+  }
+
+  const headers = [
+    "구분",
+    "이름",
+    "휴대폰번호",
+    "성공주차수",
+    "1주차상태",
+    "1주차블로그URL",
+    "2주차상태",
+    "2주차블로그URL",
+    "3주차상태",
+    "3주차블로그URL",
+    "4주차상태",
+    "4주차블로그URL",
+    "5주차상태",
+    "5주차블로그URL",
+  ];
+
+  const rows = data.participants.map((participant) => {
+    const weekCells = participant.weeks.flatMap((week) => [weekStatusLabel(week), week.mission1Url || ""]);
+    return [
+      participant.group === "senior" ? "시니어" : "주니어",
+      participant.name,
+      formatPhone(participant.phone),
+      `${participant.completedWeeks}/5`,
+      ...weekCells,
+    ];
+  });
+
+  const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\r\n");
+  const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const today = new Date().toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `choblog7-missions-${today}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  showToast("CSV 다운로드를 시작했습니다.");
+}
+
 els.juniorButton.addEventListener("click", () => selectGroup("junior"));
 els.seniorButton.addEventListener("click", () => selectGroup("senior"));
+
+els.nameSearchInput.addEventListener("input", () => {
+  state.nameSearch = els.nameSearchInput.value;
+  renderNameList();
+});
+
+els.adminSearchInput.addEventListener("input", () => {
+  state.adminSearch = els.adminSearchInput.value;
+  if (state.masterData) renderMaster(state.masterData);
+});
+
+els.downloadCsvButton.addEventListener("click", downloadCsv);
 
 els.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();

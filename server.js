@@ -486,7 +486,7 @@ async function handleApi(req, res, pathname) {
 
     if (pathname === "/api/links" && req.method === "GET") {
       const db = readDb();
-      return sendJson(res, 200, { ok: true, links: buildLinkRows(db) });
+      return sendJson(res, 200, { ok: true, currentWeek: db.settings.currentWeek, links: buildLinkRows(db) });
     }
 
     if (pathname === "/api/login" && req.method === "POST") {
