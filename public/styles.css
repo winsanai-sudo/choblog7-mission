@@ -18,6 +18,10 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -34,6 +38,7 @@ button,
 input,
 select {
   font: inherit;
+  font-size: 16px;
 }
 
 .scene-effects {
@@ -555,6 +560,7 @@ button:disabled {
 .table-wrap {
   margin-top: 16px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 td a {
@@ -828,5 +834,253 @@ th {
   .link-card {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 560px) {
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(255, 93, 231, 0.2), transparent 34%),
+      linear-gradient(160deg, #050712 0%, #101a3d 62%, #050712 100%);
+  }
+
+  .scene-effects span {
+    width: 72vw;
+    height: 72vw;
+    filter: blur(28px);
+    opacity: 0.32;
+  }
+
+  .shell {
+    width: min(100% - 18px, 560px);
+    padding: max(10px, env(safe-area-inset-top)) 0 calc(34px + env(safe-area-inset-bottom));
+  }
+
+  .hero {
+    min-height: 0;
+    gap: 18px;
+    padding: 22px 18px;
+    border-radius: 18px;
+  }
+
+  .hero::after {
+    height: 42%;
+  }
+
+  h1 {
+    font-size: 34px;
+    line-height: 1.08;
+  }
+
+  h2 {
+    font-size: 21px;
+  }
+
+  .hero-copy {
+    margin-top: 12px;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  .hero-panel,
+  .panel,
+  .mission-card,
+  .table-wrap {
+    border-radius: 16px;
+  }
+
+  .hero-panel,
+  .panel,
+  .mission-card {
+    padding: 18px;
+  }
+
+  .hero-panel a,
+  .link-button,
+  button,
+  input,
+  select {
+    min-height: 52px;
+  }
+
+  .panel-head,
+  .mission-title {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .step {
+    min-height: 28px;
+    padding: 5px 9px;
+    font-size: 12px;
+  }
+
+  .segmented {
+    position: sticky;
+    top: 8px;
+    z-index: 3;
+    margin-top: 14px;
+    background: rgba(7, 12, 30, 0.88);
+    backdrop-filter: blur(18px);
+  }
+
+  .segmented button {
+    min-height: 48px;
+  }
+
+  .name-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 320px;
+    gap: 10px;
+  }
+
+  .name-list button {
+    min-height: 50px;
+    padding: 0 10px;
+    font-size: 15px;
+  }
+
+  .privacy-note {
+    font-size: 12px;
+  }
+
+  .week-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 0 2px 8px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .week-tabs button {
+    flex: 0 0 88px;
+    scroll-snap-align: start;
+    padding: 0 10px;
+  }
+
+  .mission-grid {
+    gap: 12px;
+  }
+
+  .mission-title strong {
+    font-size: 20px;
+  }
+
+  .mission-card p {
+    margin: 12px 0 0;
+    font-size: 14px;
+  }
+
+  .checks {
+    gap: 8px;
+  }
+
+  .checks label {
+    min-height: 54px;
+    padding: 12px;
+  }
+
+  .checks input {
+    width: 22px;
+    min-height: 22px;
+  }
+
+  .action-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .action-row .link-button,
+  .action-row button {
+    width: 100%;
+  }
+
+  .master-controls,
+  .admin-search {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .stats {
+    grid-template-columns: 1fr;
+  }
+
+  .stat {
+    padding: 14px;
+  }
+
+  .stat strong {
+    font-size: 24px;
+  }
+
+  .table-wrap {
+    margin-left: -9px;
+    margin-right: -9px;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  table {
+    min-width: 680px;
+    font-size: 13px;
+  }
+
+  th,
+  td {
+    padding: 11px 10px;
+  }
+
+  .page-title {
+    gap: 14px;
+    padding: 22px 0 8px;
+  }
+
+  .page-title h1 {
+    font-size: 32px;
+  }
+
+  .page-title p {
+    font-size: 14px;
+  }
+
+  .group-filters,
+  .filter-row {
+    gap: 8px;
+    margin: 12px 0;
+  }
+
+  .group-filters button,
+  .filter-row button {
+    padding: 0 10px;
+  }
+
+  .link-card {
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .link-card a {
+    width: 100%;
+    min-height: 50px;
+  }
+
+  .toast {
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    width: calc(100% - 18px);
+    padding: 13px 14px;
+    font-size: 14px;
+  }
+
+  .success-modal div {
+    width: calc(100% - 28px);
+    padding: 24px 18px;
+    border-radius: 18px;
+  }
+
+  .success-modal p {
+    font-size: clamp(30px, 12vw, 52px);
   }
 }
