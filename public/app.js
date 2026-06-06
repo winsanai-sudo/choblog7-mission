@@ -21,13 +21,25 @@ const DEMO_JUNIOR_NAMES = [
   "콜모고로프", "에르되시", "나시", "만델브로트", "와일스", "테렌스 타오", "메리 카트라이트", "코발레프스카야", "바이어슈트라스",
 ];
 
+const DEMO_SENIOR_MATH_NAMES = [
+  "피타고라스", "유클리드", "아르키메데스", "탈레스", "히파티아", "알콰리즈미", "피보나치", "데카르트", "페르마", "파스칼",
+  "뉴턴", "라이프니츠", "오일러", "라그랑주", "라플라스", "가우스", "코시", "리만", "칸토어", "푸앵카레",
+  "힐베르트", "라마누잔", "에미 뇌터", "튜링", "존 폰 노이만", "콜모고로프",
+];
+
+const DEMO_JUNIOR_MATH_NAMES = [
+  "에라토스테네스", "디오판토스", "브라마굽타", "오마르 하이얌", "나시르 알투시", "카르다노", "비에트", "베르누이",
+  "마리아 아녜시", "소피 제르맹", "에이다 러브레이스", "부울", "바이어슈트라스", "데데킨트", "클라인", "민코프스키",
+  "하디", "리틀우드", "괴델", "바나흐", "타르스키", "섀넌", "만델브로", "캐서린 존슨", "마리암 미르자카니", "테렌스 타오", "페렐만",
+];
+
 function isDemoSite() {
   return window.location.hostname.includes("choblog7-demo");
 }
 
 function getNamesForGroup(group) {
   if (isDemoSite()) {
-    return group === "senior" ? DEMO_SENIOR_NAMES : DEMO_JUNIOR_NAMES;
+    return group === "senior" ? DEMO_SENIOR_MATH_NAMES : DEMO_JUNIOR_MATH_NAMES;
   }
   return group === "senior" ? SENIOR_NAMES : JUNIOR_NAMES;
 }
