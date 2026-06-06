@@ -9,6 +9,29 @@ const JUNIOR_NAMES = [
   "혜원", "혜빈", "룡수",
 ];
 
+const DEMO_SENIOR_NAMES = [
+  "피타고라스", "페르마", "오일러", "가우스", "리만", "뉴턴", "라이프니츠", "데카르트", "파스칼", "라플라스",
+  "라그랑주", "푸리에", "코시", "갈루아", "힐베르트", "칸토어", "라마누잔", "튜링", "노이만", "러셀",
+  "베르누이", "아벨", "야코비", "뫼비우스", "클라인", "민코프스키",
+];
+
+const DEMO_JUNIOR_NAMES = [
+  "유클리드", "아르키메데스", "탈레스", "아폴로니우스", "히파티아", "피보나치", "카르다노", "네이피어", "베이즈",
+  "소피 제르맹", "에미 뇌터", "러브레이스", "부울", "벤다이어그램", "포앵카레", "체비쇼프", "마르코프", "괴델",
+  "콜모고로프", "에르되시", "나시", "만델브로트", "와일스", "테렌스 타오", "메리 카트라이트", "코발레프스카야", "바이어슈트라스",
+];
+
+function isDemoSite() {
+  return window.location.hostname.includes("choblog7-demo");
+}
+
+function getNamesForGroup(group) {
+  if (isDemoSite()) {
+    return group === "senior" ? DEMO_SENIOR_NAMES : DEMO_JUNIOR_NAMES;
+  }
+  return group === "senior" ? SENIOR_NAMES : JUNIOR_NAMES;
+}
+
 const state = {
   group: "junior",
   participant: null,
@@ -82,7 +105,7 @@ function credentials() {
 }
 
 function renderNameList() {
-  const names = state.group === "senior" ? SENIOR_NAMES : JUNIOR_NAMES;
+  const names = getNamesForGroup(state.group);
   els.nameList.innerHTML = "";
   els.nameInput.value = "";
 
