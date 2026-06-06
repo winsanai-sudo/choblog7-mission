@@ -5,6 +5,10 @@ const crypto = require("crypto");
 
 const PORT = Number(process.env.PORT || 4173);
 const MASTER_PASSWORD = process.env.MASTER_PASSWORD || "choblog7";
+const SUPABASE_URL = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
+const SUPABASE_SERVICE_ROLE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || "");
+const SUPABASE_STATE_TABLE = process.env.SUPABASE_STATE_TABLE || "choblog7_state";
+const MISSION_STATE_KEY = process.env.MISSION_STATE_KEY || "mission";
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, "public");
 const DATA_DIR = path.join(ROOT, "data");
@@ -20,6 +24,19 @@ const mimeTypes = {
 
 function emptyDb() {
   return { participants: [], submissions: [], settings: { currentWeek: 1 } };
+}
+
+function normalizeDb(db) {
+  const normalized = db && typeof db === "object" ? db : emptyDb();
+  if (!Array.isArray(normalized.participants)) normalized.participants = [];
+  if (!Array.isArray(normalized.submissions)) normalized.submissions = [];
+  if (!normalized.settings) normalized.settings = { currentWeek: 1 };
+  if (!normalized.settings.currentWeek) normalized.settings.currentWeek = 1;
+  return normalized;
+}
+
+function useSupabase() {
+  return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 }
 
 function toDateInputValue(date) {
@@ -57,9 +74,38 @@ function ensureSeminarDb() {
 
 function readDb() {
   ensureDb();
-  const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
-  if (!db.settings) db.settings = { currentWeek: 1 };
-  return db;
+  return normalizeDb(JSON.parse(fs.readFileSync(DB_PATH, "utf8")));
+}
+
+async function supabaseRequest(pathname, options = {}) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${pathname}`, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+      ...(options.headers || {}),
+    },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Supabase 저장소 오류: ${response.status} ${text}`);
+  }
+  if (response.status === 204) return null;
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function readMissionDb() {
+  if (!useSupabase()) return readDb();
+
+  const rows = await supabaseRequest(`${SUPABASE_STATE_TABLE}?key=eq.${encodeURIComponent(MISSION_STATE_KEY)}&select=data&limit=1`);
+  if (rows.length && rows[0].data) return normalizeDb(rows[0].data);
+
+  const initialDb = readDb();
+  await writeMissionDb(initialDb);
+  return initialDb;
 }
 
 function readSeminarDb() {
@@ -74,6 +120,24 @@ function readSeminarDb() {
 function writeDb(db) {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+}
+
+async function writeMissionDb(db) {
+  const normalized = normalizeDb(db);
+  if (!useSupabase()) {
+    writeDb(normalized);
+    return;
+  }
+
+  await supabaseRequest(`${SUPABASE_STATE_TABLE}?on_conflict=key`, {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify({
+      key: MISSION_STATE_KEY,
+      data: normalized,
+      updated_at: new Date().toISOString(),
+    }),
+  });
 }
 
 function writeSeminarDb(db) {
@@ -485,7 +549,7 @@ async function handleApi(req, res, pathname) {
     }
 
     if (pathname === "/api/links" && req.method === "GET") {
-      const db = readDb();
+      const db = await readMissionDb();
       return sendJson(res, 200, { ok: true, currentWeek: db.settings.currentWeek, links: buildLinkRows(db) });
     }
 
@@ -498,9 +562,9 @@ async function handleApi(req, res, pathname) {
         return sendJson(res, 400, { ok: false, message: "이름과 휴대폰번호를 확인해주세요." });
       }
 
-      const db = readDb();
+      const db = await readMissionDb();
       const participant = getParticipant(db, name, phone, group);
-      writeDb(db);
+      await writeMissionDb(db);
       return sendJson(res, 200, {
         ok: true,
         participant,
@@ -521,12 +585,12 @@ async function handleApi(req, res, pathname) {
         return sendJson(res, 400, { ok: false, message: "제출 정보가 올바르지 않습니다." });
       }
 
-      const db = readDb();
+      const db = await readMissionDb();
       const participant = getParticipant(db, name, phone, group);
       const alreadySubmitted = Boolean(findSubmission(db.submissions, participant.id, week, mission));
 
       if (alreadySubmitted) {
-        writeDb(db);
+        await writeMissionDb(db);
         return sendJson(res, 409, { ok: false, message: `${week}주차 미션은 이미 제출 하였습니다` });
       }
 
@@ -560,7 +624,7 @@ async function handleApi(req, res, pathname) {
       };
 
       db.submissions.push(submission);
-      writeDb(db);
+      await writeMissionDb(db);
       return sendJson(res, 200, {
         ok: true,
         message: "미션 완료가 저장되었습니다.",
@@ -575,7 +639,7 @@ async function handleApi(req, res, pathname) {
         return sendJson(res, 401, { ok: false, message: "마스터 비밀번호가 올바르지 않습니다." });
       }
 
-      const db = readDb();
+      const db = await readMissionDb();
       const participants = db.participants.map((participant) =>
         summarizeParticipant(participant, db.submissions, db.settings.currentWeek),
       );
@@ -598,9 +662,9 @@ async function handleApi(req, res, pathname) {
       if (!currentWeek) {
         return sendJson(res, 400, { ok: false, message: "현재 진행 주차를 1주차부터 5주차 사이로 선택해주세요." });
       }
-      const db = readDb();
+      const db = await readMissionDb();
       db.settings.currentWeek = currentWeek;
-      writeDb(db);
+      await writeMissionDb(db);
       const participants = db.participants.map((participant) =>
         summarizeParticipant(participant, db.submissions, db.settings.currentWeek),
       );
@@ -620,7 +684,7 @@ async function handleApi(req, res, pathname) {
       if (String(body.password || "") !== MASTER_PASSWORD) {
         return sendJson(res, 401, { ok: false, message: "마스터 비밀번호가 올바르지 않습니다." });
       }
-      writeDb(emptyDb());
+      await writeMissionDb(emptyDb());
       return sendJson(res, 200, { ok: true, message: "모든 데이터가 초기화되었습니다." });
     }
 

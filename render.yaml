@@ -8,6 +8,10 @@ services:
     envVars:
       - key: MASTER_PASSWORD
         value: choblog7
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
   - type: web
     name: choblog7-demo
     runtime: node
@@ -17,3 +21,9 @@ services:
     envVars:
       - key: MASTER_PASSWORD
         value: choblog7
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: MISSION_STATE_KEY
+        value: demo-mission
