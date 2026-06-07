@@ -361,19 +361,33 @@ function buildWeekStats(participants) {
   });
 }
 
+function looksBrokenName(name) {
+  const text = String(name || "").trim();
+  return !text || text === "??" || text.includes("�") || /^\?+$/.test(text);
+}
+
 function buildLinkRows(db) {
   return db.submissions
     .filter((item) => item.mission === "mission1" && item.details && item.details.postUrl)
     .slice()
-    .sort((a, b) => a.week - b.week || a.name.localeCompare(b.name, "ko"))
-    .map((item) => ({
-      name: item.name,
-      phone: item.phone,
-      group: normalizeGroup(item.group),
-      week: item.week,
-      url: item.details.postUrl,
-      submittedAt: item.submittedAt,
-    }));
+    .map((item) => {
+      const participant = db.participants.find(
+        (person) =>
+          (item.participantId && person.id === item.participantId) ||
+          (item.phone && person.phone === item.phone),
+      );
+      const name = looksBrokenName(item.name) && participant && !looksBrokenName(participant.name) ? participant.name : item.name;
+      const group = item.group || (participant ? participant.group : "");
+      return {
+        name,
+        phone: item.phone || (participant ? participant.phone : ""),
+        group: normalizeGroup(group),
+        week: item.week,
+        url: item.details.postUrl,
+        submittedAt: item.submittedAt,
+      };
+    })
+    .sort((a, b) => a.week - b.week || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
 }
 
 function seminarStudentId(name, phone) {
