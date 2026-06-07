@@ -366,17 +366,30 @@ function looksBrokenName(name) {
   return !text || text === "??" || text.includes("�") || /^\?+$/.test(text);
 }
 
+function findDisplayParticipant(participants, item) {
+  const matches = participants.filter(
+    (person) =>
+      (item.participantId && person.id === item.participantId) ||
+      (item.phone && person.phone === item.phone),
+  );
+  return matches.find((person) => !looksBrokenName(person.name)) || matches[0] || null;
+}
+
+function formatPhoneForDisplay(phone) {
+  const digits = normalizePhone(phone);
+  if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  return digits || "전화번호 없음";
+}
+
 function buildLinkRows(db) {
   return db.submissions
     .filter((item) => item.mission === "mission1" && item.details && item.details.postUrl)
     .slice()
     .map((item) => {
-      const participant = db.participants.find(
-        (person) =>
-          (item.participantId && person.id === item.participantId) ||
-          (item.phone && person.phone === item.phone),
-      );
-      const name = looksBrokenName(item.name) && participant && !looksBrokenName(participant.name) ? participant.name : item.name;
+      const participant = findDisplayParticipant(db.participants, item);
+      const participantName = participant && !looksBrokenName(participant.name) ? participant.name : "";
+      const fallbackName = `이름 확인 필요 (${formatPhoneForDisplay(item.phone || (participant ? participant.phone : ""))})`;
+      const name = looksBrokenName(item.name) ? participantName || fallbackName : item.name;
       const group = item.group || (participant ? participant.group : "");
       return {
         name,
