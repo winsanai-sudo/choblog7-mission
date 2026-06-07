@@ -375,12 +375,6 @@ function findDisplayParticipant(participants, item) {
   return matches.find((person) => !looksBrokenName(person.name)) || matches[0] || null;
 }
 
-function formatPhoneForDisplay(phone) {
-  const digits = normalizePhone(phone);
-  if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
-  return digits || "전화번호 없음";
-}
-
 function buildLinkRows(db) {
   return db.submissions
     .filter((item) => item.mission === "mission1" && item.details && item.details.postUrl)
@@ -388,12 +382,11 @@ function buildLinkRows(db) {
     .map((item) => {
       const participant = findDisplayParticipant(db.participants, item);
       const participantName = participant && !looksBrokenName(participant.name) ? participant.name : "";
-      const fallbackName = `이름 확인 필요 (${formatPhoneForDisplay(item.phone || (participant ? participant.phone : ""))})`;
-      const name = looksBrokenName(item.name) ? participantName || fallbackName : item.name;
-      const group = item.group || (participant ? participant.group : "");
+      const fallbackName = "이름 확인 필요";
+      const name = participantName || (looksBrokenName(item.name) ? fallbackName : item.name);
+      const group = participant && participant.group ? participant.group : item.group;
       return {
         name,
-        phone: item.phone || (participant ? participant.phone : ""),
         group: normalizeGroup(group),
         week: item.week,
         url: item.details.postUrl,
