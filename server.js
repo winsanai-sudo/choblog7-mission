@@ -23,13 +23,14 @@ const mimeTypes = {
 };
 
 function emptyDb() {
-  return { participants: [], submissions: [], settings: { currentWeek: 1 } };
+  return { participants: [], submissions: [], progress: [], settings: { currentWeek: 1 } };
 }
 
 function normalizeDb(db) {
   const normalized = db && typeof db === "object" ? db : emptyDb();
   if (!Array.isArray(normalized.participants)) normalized.participants = [];
   if (!Array.isArray(normalized.submissions)) normalized.submissions = [];
+  if (!Array.isArray(normalized.progress)) normalized.progress = [];
   if (!normalized.settings) normalized.settings = { currentWeek: 1 };
   if (!normalized.settings.currentWeek) normalized.settings.currentWeek = 1;
   return normalized;
@@ -270,19 +271,62 @@ function findSubmission(submissions, participantIdValue, week, mission) {
   );
 }
 
-function summarizeParticipant(participant, submissions, currentWeek = 1) {
+function findProgress(progressRows, participantIdValue, week) {
+  return progressRows.find((item) => item.participantId === participantIdValue && item.week === week);
+}
+
+function getProgress(db, participant, week) {
+  let progress = findProgress(db.progress, participant.id, week);
+  if (!progress) {
+    progress = {
+      id: crypto.randomUUID(),
+      participantId: participant.id,
+      name: participant.name,
+      phone: participant.phone,
+      group: participant.group,
+      week,
+      mission1Url: "",
+      mission2Details: {
+        stayedOverOneMinute: false,
+        liked: false,
+        neighborRequest: false,
+        secretComment: false,
+      },
+      updatedAt: getKoreaTimestamp(),
+    };
+    db.progress.push(progress);
+  }
+  progress.name = participant.name;
+  progress.phone = participant.phone;
+  progress.group = participant.group;
+  return progress;
+}
+
+function summarizeParticipant(participant, submissions, currentWeek = 1, progressRows = []) {
   const weeks = Array.from({ length: 5 }, (_, index) => {
     const week = index + 1;
     const mission1 = findSubmission(submissions, participant.id, week, "mission1");
     const mission2 = findSubmission(submissions, participant.id, week, "mission2");
+    const progress = findProgress(progressRows, participant.id, week);
+    const mission2Details = mission2
+      ? mission2.details
+      : progress && progress.mission2Details
+        ? progress.mission2Details
+        : {
+            stayedOverOneMinute: false,
+            liked: false,
+            neighborRequest: false,
+            secretComment: false,
+          };
     return {
       week,
       mission1: Boolean(mission1),
-      mission1Url: mission1 ? mission1.details.postUrl : "",
+      mission1Url: mission1 ? mission1.details.postUrl : progress ? progress.mission1Url || "" : "",
       mission1SubmittedAt: mission1 ? mission1.submittedAt : "",
       mission1SubmittedDuringWeek: mission1 ? mission1.submittedDuringWeek || week : null,
       mission1Late: Boolean(mission1 && (mission1.submittedDuringWeek || week) > week),
       mission2: Boolean(mission2),
+      mission2Details,
       mission2SubmittedAt: mission2 ? mission2.submittedAt : "",
       mission2SubmittedDuringWeek: mission2 ? mission2.submittedDuringWeek || week : null,
       mission2Late: Boolean(mission2 && (mission2.submittedDuringWeek || week) > week),
@@ -568,8 +612,45 @@ async function handleApi(req, res, pathname) {
       return sendJson(res, 200, {
         ok: true,
         participant,
-        summary: summarizeParticipant(participant, db.submissions, db.settings.currentWeek),
+        summary: summarizeParticipant(participant, db.submissions, db.settings.currentWeek, db.progress),
         canSubmitMission1Today: isSundayInKorea(),
+      });
+    }
+
+    if (pathname === "/api/progress" && req.method === "POST") {
+      const body = await readBody(req);
+      const name = normalizeName(body.name);
+      const phone = normalizePhone(body.phone);
+      const group = normalizeGroup(body.group);
+      const week = validateWeek(body.week);
+
+      if (!name || phone.length < 8 || !week) {
+        return sendJson(res, 400, { ok: false, message: "저장 정보가 올바르지 않습니다." });
+      }
+
+      const db = await readMissionDb();
+      const participant = getParticipant(db, name, phone, group);
+      const progress = getProgress(db, participant, week);
+
+      if (body.details && Object.prototype.hasOwnProperty.call(body.details, "postUrl")) {
+        progress.mission1Url = normalizeUrl(body.details.postUrl) || String(body.details.postUrl || "").trim();
+      }
+
+      if (body.details && body.details.mission2Details) {
+        progress.mission2Details = {
+          stayedOverOneMinute: Boolean(body.details.mission2Details.stayedOverOneMinute),
+          liked: Boolean(body.details.mission2Details.liked),
+          neighborRequest: Boolean(body.details.mission2Details.neighborRequest),
+          secretComment: Boolean(body.details.mission2Details.secretComment),
+        };
+      }
+
+      progress.updatedAt = getKoreaTimestamp();
+      await writeMissionDb(db);
+      return sendJson(res, 200, {
+        ok: true,
+        message: "진행 상태가 저장되었습니다.",
+        summary: summarizeParticipant(participant, db.submissions, db.settings.currentWeek, db.progress),
       });
     }
 
@@ -587,12 +668,7 @@ async function handleApi(req, res, pathname) {
 
       const db = await readMissionDb();
       const participant = getParticipant(db, name, phone, group);
-      const alreadySubmitted = Boolean(findSubmission(db.submissions, participant.id, week, mission));
-
-      if (alreadySubmitted) {
-        await writeMissionDb(db);
-        return sendJson(res, 409, { ok: false, message: `${week}주차 미션은 이미 제출 하였습니다` });
-      }
+      const existingSubmission = findSubmission(db.submissions, participant.id, week, mission);
 
       let details;
       if (mission === "mission1") {
@@ -610,26 +686,44 @@ async function handleApi(req, res, pathname) {
         };
       }
 
-      const submission = {
-        id: crypto.randomUUID(),
-        participantId: participant.id,
-        name: participant.name,
-        phone: participant.phone,
-        group: participant.group,
-        week,
-        mission,
-        details,
-        submittedDuringWeek: db.settings.currentWeek,
-        submittedAt: getKoreaTimestamp(),
-      };
+      const sameDetails = existingSubmission && JSON.stringify(existingSubmission.details || {}) === JSON.stringify(details);
+      if (sameDetails) {
+        await writeMissionDb(db);
+        return sendJson(res, 409, { ok: false, message: `${week}주차 미션은 이미 제출 하였습니다` });
+      }
 
-      db.submissions.push(submission);
+      const progress = getProgress(db, participant, week);
+      if (mission === "mission1") progress.mission1Url = details.postUrl;
+      if (mission === "mission2") progress.mission2Details = details;
+      progress.updatedAt = getKoreaTimestamp();
+
+      const submission =
+        existingSubmission ||
+        {
+          id: crypto.randomUUID(),
+          participantId: participant.id,
+          name: participant.name,
+          phone: participant.phone,
+          group: participant.group,
+          week,
+          mission,
+          submittedDuringWeek: db.settings.currentWeek,
+          submittedAt: getKoreaTimestamp(),
+        };
+
+      submission.name = participant.name;
+      submission.phone = participant.phone;
+      submission.group = participant.group;
+      submission.details = details;
+      if (existingSubmission) submission.updatedAt = getKoreaTimestamp();
+
+      if (!existingSubmission) db.submissions.push(submission);
       await writeMissionDb(db);
       return sendJson(res, 200, {
         ok: true,
-        message: "미션 완료가 저장되었습니다.",
+        message: existingSubmission ? "수정 완료되었습니다." : "미션 완료가 저장되었습니다.",
         submission,
-        summary: summarizeParticipant(participant, db.submissions, db.settings.currentWeek),
+        summary: summarizeParticipant(participant, db.submissions, db.settings.currentWeek, db.progress),
       });
     }
 
@@ -641,7 +735,7 @@ async function handleApi(req, res, pathname) {
 
       const db = await readMissionDb();
       const participants = db.participants.map((participant) =>
-        summarizeParticipant(participant, db.submissions, db.settings.currentWeek),
+        summarizeParticipant(participant, db.submissions, db.settings.currentWeek, db.progress),
       );
       return sendJson(res, 200, {
         ok: true,
@@ -666,7 +760,7 @@ async function handleApi(req, res, pathname) {
       db.settings.currentWeek = currentWeek;
       await writeMissionDb(db);
       const participants = db.participants.map((participant) =>
-        summarizeParticipant(participant, db.submissions, db.settings.currentWeek),
+        summarizeParticipant(participant, db.submissions, db.settings.currentWeek, db.progress),
       );
       return sendJson(res, 200, {
         ok: true,

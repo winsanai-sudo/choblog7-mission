@@ -53,6 +53,8 @@ const state = {
   masterData: null,
   nameSearch: "",
   adminSearch: "",
+  isRenderingParticipant: false,
+  progressSaveTimer: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -170,6 +172,8 @@ function renderWeekTabs() {
     const weekSummary = state.summary && state.summary.weeks.find((item) => item.week === week);
     const button = document.createElement("button");
     button.type = "button";
+    button.id = `weekTab${week}`;
+    button.dataset.week = String(week);
     button.className = week === state.selectedWeek ? "active" : "";
     button.textContent = `${week}주차 ${weekSummary && weekSummary.success ? "완료" : ""}`;
     button.addEventListener("click", () => {
@@ -185,19 +189,112 @@ function setMissionStatus(element, done, doneText, emptyText) {
   element.className = done ? "status done" : "status";
 }
 
+function defaultMission2Details() {
+  return {
+    stayedOverOneMinute: false,
+    liked: false,
+    neighborRequest: false,
+    secretComment: false,
+  };
+}
+
+function normalizeMission2Details(details) {
+  return {
+    stayedOverOneMinute: Boolean(details && details.stayedOverOneMinute),
+    liked: Boolean(details && details.liked),
+    neighborRequest: Boolean(details && details.neighborRequest),
+    secretComment: Boolean(details && details.secretComment),
+  };
+}
+
+function readMission2DetailsFromForm() {
+  return {
+    stayedOverOneMinute: els.stayedCheck.checked,
+    liked: els.likedCheck.checked,
+    neighborRequest: els.neighborCheck.checked,
+    secretComment: els.commentCheck.checked,
+  };
+}
+
+function sameMission2Details(left, right) {
+  const a = normalizeMission2Details(left);
+  const b = normalizeMission2Details(right);
+  return (
+    a.stayedOverOneMinute === b.stayedOverOneMinute &&
+    a.liked === b.liked &&
+    a.neighborRequest === b.neighborRequest &&
+    a.secretComment === b.secretComment
+  );
+}
+
+function allMission2Checked(details) {
+  const normalized = normalizeMission2Details(details);
+  return normalized.stayedOverOneMinute && normalized.liked && normalized.neighborRequest && normalized.secretComment;
+}
+
+function updateMissionButtons() {
+  if (!state.summary) return;
+  const week = getSelectedWeekSummary();
+  if (!week) return;
+
+  const mission1Button = els.mission1Form.querySelector("button");
+  const mission2Button = els.mission2Form.querySelector("button");
+  const postUrl = els.postUrlInput.value.trim();
+  const mission1Changed = postUrl !== String(week.mission1Url || "").trim();
+  const currentMission2 = readMission2DetailsFromForm();
+  const mission2Changed = !sameMission2Details(currentMission2, week.mission2Details || defaultMission2Details());
+
+  mission1Button.textContent = week.mission1 ? "미션1 수정 완료" : "미션1 완료";
+  mission1Button.disabled = week.mission1 ? !mission1Changed : !postUrl;
+
+  mission2Button.textContent = week.mission2 ? "미션2 수정 완료" : "미션2 완료";
+  mission2Button.disabled = week.mission2 ? !mission2Changed : !allMission2Checked(currentMission2);
+}
+
+async function saveProgressNow() {
+  if (!state.participant || !state.summary) return;
+  try {
+    const data = await api("/api/progress", {
+      ...credentials(),
+      week: state.selectedWeek,
+      details: {
+        postUrl: els.postUrlInput.value,
+        mission2Details: readMission2DetailsFromForm(),
+      },
+    });
+    state.summary = data.summary;
+    updateMissionButtons();
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+function scheduleProgressSave() {
+  if (state.isRenderingParticipant) return;
+  updateMissionButtons();
+  window.clearTimeout(state.progressSaveTimer);
+  state.progressSaveTimer = window.setTimeout(saveProgressNow, 450);
+}
+
 function renderParticipant() {
   els.participantArea.classList.remove("hidden");
   els.masterArea.classList.add("hidden");
   els.welcomeTitle.textContent = `${state.participant.name}님 미션 제출`;
   renderWeekTabs();
 
+  state.isRenderingParticipant = true;
   const week = state.summary.weeks.find((item) => item.week === state.selectedWeek);
   setMissionStatus(els.mission1Status, week.mission1, "미션1 제출 완료", "아직 제출 전입니다.");
   setMissionStatus(els.mission2Status, week.mission2, "미션2 제출 완료", "아직 제출 전입니다.");
 
-  els.mission1Form.querySelector("button").disabled = week.mission1;
-  els.mission2Form.querySelector("button").disabled = week.mission2;
   els.postUrlInput.value = week.mission1Url || "";
+  const details = normalizeMission2Details(week.mission2Details || defaultMission2Details());
+  els.stayedCheck.checked = details.stayedOverOneMinute;
+  els.likedCheck.checked = details.liked;
+  els.neighborCheck.checked = details.neighborRequest;
+  els.commentCheck.checked = details.secretComment;
+  state.isRenderingParticipant = false;
+  updateMissionButtons();
 }
 
 function renderMaster(data) {
@@ -446,6 +543,12 @@ els.adminSearchInput.addEventListener("input", () => {
 
 els.downloadCsvButton.addEventListener("click", downloadCsv);
 
+els.postUrlInput.addEventListener("input", scheduleProgressSave);
+els.stayedCheck.addEventListener("change", scheduleProgressSave);
+els.likedCheck.addEventListener("change", scheduleProgressSave);
+els.neighborCheck.addEventListener("change", scheduleProgressSave);
+els.commentCheck.addEventListener("change", scheduleProgressSave);
+
 els.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!els.nameInput.value) {
@@ -483,6 +586,7 @@ els.masterLoginForm.addEventListener("submit", async (event) => {
 
 els.mission1Form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  window.clearTimeout(state.progressSaveTimer);
   const previousWeek = getSelectedWeekSummary();
   try {
     const data = await api("/api/submit", {
@@ -504,8 +608,10 @@ els.mission1Form.addEventListener("submit", async (event) => {
 
 els.mission2Form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  window.clearTimeout(state.progressSaveTimer);
   const previousWeek = getSelectedWeekSummary();
-  const allChecked = els.stayedCheck.checked && els.likedCheck.checked && els.neighborCheck.checked && els.commentCheck.checked;
+  const mission2Details = readMission2DetailsFromForm();
+  const allChecked = allMission2Checked(mission2Details);
   if (!allChecked) {
     showToast("미션2 항목 4가지를 모두 체크해주세요.");
     return;
@@ -516,12 +622,7 @@ els.mission2Form.addEventListener("submit", async (event) => {
       ...credentials(),
       week: state.selectedWeek,
       mission: "mission2",
-      details: {
-        stayedOverOneMinute: els.stayedCheck.checked,
-        liked: els.likedCheck.checked,
-        neighborRequest: els.neighborCheck.checked,
-        secretComment: els.commentCheck.checked,
-      },
+      details: mission2Details,
     });
     state.summary = data.summary;
     renderParticipant();
