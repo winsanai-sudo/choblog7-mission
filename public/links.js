@@ -1,6 +1,6 @@
 const linkState = {
   links: [],
-  group: "all",
+  group: "junior",
   week: "all",
   currentWeek: null,
 };
@@ -22,7 +22,6 @@ function escapeHtml(value) {
 
 function renderFilters() {
   const groupOptions = [
-    { value: "all", label: "전체" },
     { value: "junior", label: "주니어" },
     { value: "senior", label: "시니어" },
   ];
