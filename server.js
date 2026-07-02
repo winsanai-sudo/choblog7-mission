@@ -14,6 +14,8 @@ const PUBLIC_DIR = path.join(ROOT, "public");
 const DATA_DIR = path.join(ROOT, "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
 const SEMINAR_DB_PATH = path.join(DATA_DIR, "seminar.json");
+const MISSION_WEEKS = [1, 2, 3, 4, 5, 6];
+const EXAM_WEEK = 6;
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -228,7 +230,11 @@ function formatKoreanDate(dateValue) {
 
 function validateWeek(week) {
   const value = Number(week);
-  return Number.isInteger(value) && value >= 1 && value <= 5 ? value : null;
+  return MISSION_WEEKS.includes(value) ? value : null;
+}
+
+function missionWeekLabel(week) {
+  return Number(week) === EXAM_WEEK ? "시험기간" : `${week}주차`;
 }
 
 function validateDateInput(value) {
@@ -303,8 +309,7 @@ function getProgress(db, participant, week) {
 }
 
 function summarizeParticipant(participant, submissions, currentWeek = 1, progressRows = []) {
-  const weeks = Array.from({ length: 5 }, (_, index) => {
-    const week = index + 1;
+  const weeks = MISSION_WEEKS.map((week) => {
     const mission1 = findSubmission(submissions, participant.id, week, "mission1");
     const mission2 = findSubmission(submissions, participant.id, week, "mission2");
     const progress = findProgress(progressRows, participant.id, week);
@@ -320,6 +325,7 @@ function summarizeParticipant(participant, submissions, currentWeek = 1, progres
           };
     return {
       week,
+      label: missionWeekLabel(week),
       mission1: Boolean(mission1),
       mission1Url: mission1 ? mission1.details.postUrl : progress ? progress.mission1Url || "" : "",
       mission1SubmittedAt: mission1 ? mission1.submittedAt : "",
@@ -349,11 +355,11 @@ function summarizeParticipant(participant, submissions, currentWeek = 1, progres
 
 function buildWeekStats(participants) {
   const totalParticipants = participants.length;
-  return Array.from({ length: 5 }, (_, index) => {
-    const week = index + 1;
+  return MISSION_WEEKS.map((week, index) => {
     const successCount = participants.filter((participant) => participant.weeks[index].success).length;
     return {
       week,
+      label: missionWeekLabel(week),
       successCount,
       totalParticipants,
       successRate: totalParticipants ? Math.round((successCount / totalParticipants) * 100) : 0,
@@ -774,7 +780,7 @@ async function handleApi(req, res, pathname) {
       }
       const currentWeek = validateWeek(body.currentWeek);
       if (!currentWeek) {
-        return sendJson(res, 400, { ok: false, message: "현재 진행 주차를 1주차부터 5주차 사이로 선택해주세요." });
+        return sendJson(res, 400, { ok: false, message: "현재 진행 기간을 1주차부터 시험기간 사이로 선택해주세요." });
       }
       const db = await readMissionDb();
       db.settings.currentWeek = currentWeek;
@@ -784,7 +790,7 @@ async function handleApi(req, res, pathname) {
       );
       return sendJson(res, 200, {
         ok: true,
-        message: `${currentWeek}주차를 현재 진행 주차로 설정했습니다.`,
+        message: `${missionWeekLabel(currentWeek)}을 현재 진행 기간으로 설정했습니다.`,
         settings: db.settings,
         participants,
         submissions: db.submissions.slice().sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),

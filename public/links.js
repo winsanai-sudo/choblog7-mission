@@ -10,6 +10,11 @@ const weekFilters = document.getElementById("weekFilters");
 const linkList = document.getElementById("linkList");
 const emptyState = document.getElementById("emptyState");
 const currentWeekNote = document.getElementById("currentWeekNote");
+const EXAM_WEEK = 6;
+
+function missionWeekLabel(week) {
+  return Number(week) === EXAM_WEEK ? "시험기간" : `${week}주차`;
+}
 
 function escapeHtml(value) {
   return String(value || "")
@@ -32,18 +37,18 @@ function renderFilters() {
     })
     .join("");
 
-  const filters = ["all", 1, 2, 3, 4, 5];
+  const filters = ["all", 1, 2, 3, 4, 5, EXAM_WEEK];
   weekFilters.innerHTML = filters
     .map((week) => {
       const isCurrent = Number(week) === Number(linkState.currentWeek);
-      const label = week === "all" ? "전체" : `${week}주차${isCurrent ? " · 이번" : ""}`;
+      const label = week === "all" ? "전체" : `${missionWeekLabel(week)}${isCurrent ? " · 이번" : ""}`;
       const active = String(linkState.week) === String(week) ? "active" : "";
-      const current = isCurrent ? "current" : "";
+      const current = `${isCurrent ? "current" : ""} ${Number(week) === EXAM_WEEK ? "exam-filter" : ""}`.trim();
       return `<button class="${active} ${current}" type="button" data-week="${week}">${label}</button>`;
     })
     .join("");
 
-  currentWeekNote.textContent = linkState.currentWeek ? `현재 강조 주차는 ${linkState.currentWeek}주차입니다.` : "";
+  currentWeekNote.textContent = linkState.currentWeek ? `현재 강조 기간은 ${missionWeekLabel(linkState.currentWeek)}입니다.` : "";
 }
 
 function renderLinks() {
@@ -59,7 +64,7 @@ function renderLinks() {
       (link) => `
         <article class="link-card">
           <div>
-            <span>${link.group === "senior" ? "시니어" : "주니어"} · ${link.week}주차</span>
+            <span>${link.group === "senior" ? "시니어" : "주니어"} · ${missionWeekLabel(link.week)}</span>
             <h2>${escapeHtml(link.name)}</h2>
             <p>${escapeHtml(link.submittedAt)}</p>
           </div>

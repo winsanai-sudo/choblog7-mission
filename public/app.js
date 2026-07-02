@@ -33,6 +33,13 @@ const DEMO_JUNIOR_MATH_NAMES = [
   "하디", "리틀우드", "괴델", "바나흐", "타르스키", "섀넌", "만델브로", "캐서린 존슨", "마리암 미르자카니", "테렌스 타오", "페렐만",
 ];
 
+const MISSION_WEEKS = [1, 2, 3, 4, 5, 6];
+const EXAM_WEEK = 6;
+
+function missionWeekLabel(week) {
+  return Number(week) === EXAM_WEEK ? "시험기간" : `${week}주차`;
+}
+
 function isDemoSite() {
   return window.location.hostname.includes("choblog7-demo");
 }
@@ -168,20 +175,20 @@ function selectGroup(group) {
 
 function renderWeekTabs() {
   els.weekTabs.innerHTML = "";
-  for (let week = 1; week <= 5; week += 1) {
+  MISSION_WEEKS.forEach((week) => {
     const weekSummary = state.summary && state.summary.weeks.find((item) => item.week === week);
     const button = document.createElement("button");
     button.type = "button";
     button.id = `weekTab${week}`;
     button.dataset.week = String(week);
-    button.className = week === state.selectedWeek ? "active" : "";
-    button.textContent = `${week}주차 ${weekSummary && weekSummary.success ? "완료" : ""}`;
+    button.className = `${week === state.selectedWeek ? "active" : ""} ${week === EXAM_WEEK ? "exam-tab" : ""}`.trim();
+    button.textContent = `${missionWeekLabel(week)} ${weekSummary && weekSummary.success ? "완료" : ""}`;
     button.addEventListener("click", () => {
       state.selectedWeek = week;
       renderParticipant();
     });
     els.weekTabs.appendChild(button);
-  }
+  });
 }
 
 function setMissionStatus(element, done, doneText, emptyText) {
@@ -316,8 +323,8 @@ function renderMaster(data) {
   els.statsArea.innerHTML = data.weekStats
     .map(
       (stat) => `
-        <div class="stat">
-          <span>${stat.week}주차 성공률</span>
+        <div class="stat ${stat.week === EXAM_WEEK ? "exam-stat" : ""}">
+          <span>${stat.label || missionWeekLabel(stat.week)} 성공률</span>
           <strong>${stat.successRate}%</strong>
           <div class="stat-bar" aria-hidden="true"><i style="width: ${stat.successRate}%"></i></div>
           <small>${stat.successCount}/${stat.totalParticipants}명 성공</small>
@@ -342,12 +349,12 @@ function renderMaster(data) {
               <td>${escapeHtml(participant.name)}</td>
               <td>${escapeHtml(formatPhone(participant.phone))}</td>
               ${weekCells}
-              <td><strong>${participant.completedWeeks}/5</strong></td>
+              <td><strong>${participant.completedWeeks}/${MISSION_WEEKS.length}</strong></td>
             </tr>
           `;
         })
         .join("")
-    : `<tr><td colspan="9">아직 참가자 데이터가 없습니다.</td></tr>`;
+    : `<tr><td colspan="10">아직 참가자 데이터가 없습니다.</td></tr>`;
 
   els.submissionTable.innerHTML = submissions.length
     ? submissions
@@ -357,8 +364,8 @@ function renderMaster(data) {
               <td>${escapeHtml(submission.submittedAt)}</td>
               <td>${escapeHtml(submission.name)}</td>
               <td class="${(submission.submittedDuringWeek || submission.week) > submission.week ? "late-cell" : ""}">
-                ${submission.week}주차
-                ${(submission.submittedDuringWeek || submission.week) > submission.week ? `<small>${submission.submittedDuringWeek}주차에 제출</small>` : ""}
+                ${missionWeekLabel(submission.week)}
+                ${(submission.submittedDuringWeek || submission.week) > submission.week ? `<small>${missionWeekLabel(submission.submittedDuringWeek)}에 제출</small>` : ""}
               </td>
               <td>${submission.mission === "mission1" ? "미션1" : "미션2"}</td>
               <td>${formatDetailsHtml(submission)}</td>
@@ -381,7 +388,7 @@ function maybeCelebrate(previousWeek, nextSummary) {
 }
 
 function launchSuccess(week) {
-  els.successWeekLabel.textContent = `${week}주차 미션 성공!!`;
+  els.successWeekLabel.textContent = `${missionWeekLabel(week)} 미션 성공!!`;
   els.successModal.classList.remove("hidden");
   runFireworks();
   window.clearTimeout(launchSuccess.timer);
@@ -490,17 +497,8 @@ function downloadCsv() {
     "구분",
     "이름",
     "휴대폰번호",
-    "성공주차수",
-    "1주차상태",
-    "1주차블로그URL",
-    "2주차상태",
-    "2주차블로그URL",
-    "3주차상태",
-    "3주차블로그URL",
-    "4주차상태",
-    "4주차블로그URL",
-    "5주차상태",
-    "5주차블로그URL",
+    "성공기간수",
+    ...MISSION_WEEKS.flatMap((week) => [`${missionWeekLabel(week)}상태`, `${missionWeekLabel(week)}블로그URL`]),
   ];
 
   const rows = data.participants.map((participant) => {
@@ -509,7 +507,7 @@ function downloadCsv() {
       participant.group === "senior" ? "시니어" : "주니어",
       participant.name,
       formatPhone(participant.phone),
-      `${participant.completedWeeks}/5`,
+      `${participant.completedWeeks}/${MISSION_WEEKS.length}`,
       ...weekCells,
     ];
   });
